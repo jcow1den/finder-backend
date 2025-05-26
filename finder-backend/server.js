@@ -1,58 +1,33 @@
-require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const path = require('path');
-const http = require('http');
-const socketIo = require('socket.io');
-
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
-
-// Middleware
-app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fynder', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
-.then(() => console.log('MongoDB Connected'))
-.catch(err => console.log('MongoDB Connection Error:', err));
+// In-memory user store
+const users = [];
 
-// Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/listings', require('./routes/listings'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/messages', require('./routes/messages'));
-
-// Serve static assets in production
-if (process.env.NODE_ENV === 'production') {
-    app.use(express.static('client/build'));
-    app.get('*', (req, res) => {
-        res.sendFile(path.resolve(__dirname, 'client', 'build', 'index.html'));
-    });
-}
-
-// Socket.IO for real-time messaging
-io.on('connection', (socket) => {
-    console.log('New client connected');
-
-    socket.on('join', (room) => {
-        socket.join(room);
-    });
-
-    socket.on('message', (data) => {
-        io.to(data.room).emit('message', data);
-    });
-
-    socket.on('disconnect', () => {
-        console.log('Client disconnected');
-    });
+// --- AUTH ROUTES INLINE ---
+// Register
+app.post('/api/auth/register', (req, res) => {
+  const { username, password } = req.body;
+  if (users.find(u => u.username === username)) {
+    return res.status(400).json({ message: 'User already exists' });
+  }
+  users.push({ username, password });
+  res.status(201).json({ message: 'User registered' });
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`)); 
+// Login
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!users.find(u => u.username === username && u.password === password)) {
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+  res.status(200).json({ message: 'Login successful' });
+});
+// --- END AUTH ---
+
+// (You can add other routes here, or inline them in the same way)
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
